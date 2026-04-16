@@ -1,4 +1,14 @@
-def load_dns_file(filename ):
+import socket
+import sys
+
+### Parent server code
+### this server responsible for:
+### 1. loading mapping host : IP records from the file
+### 2. listening for incoming  queries from clients like "what is the IP address for www.google.com?"
+### 3. responding to clients with the correct IP address for the requested domain, or "non-existent domain" if the domain is not found in the records.
+
+def load_records_from_file(filename ):
+
     records = {}
     with open(filename, "r") as f:
         for line in f:
@@ -17,37 +27,38 @@ def load_dns_file(filename ):
 
 def check_dns_record(domain, records):
     if domain in records:
-        return f"{domain}, {records[domain]['value']}, {records[domain]['type']}"
+        return f"{domain},{records[domain]['value']},{records[domain]['type']}"
 
     # CHECK FOR NS RECORDS
     for key, value in records.items():
         if domain.endswith(key) and value["type"] == "NS":
-            return f"{key}, {value['value']}, {value['type']}"
-
+            return f"{key},{value['value']},{value['type']}"
     return None
-import socket
 
-def create_socket(myPort):
+def create_socket(my_port):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)    # defining protocol IPV4 and UDP
-    s.bind(('', myPort))    # binding to myPort
+    s.bind(('', my_port))    # binding to myPort
     return s
 
-def server_logic(socket, records):
+def server_logic(server_socket, records):
     while True:
-        data, addr = socket.recvfrom(1024)
+        data, addr = server_socket.recvfrom(1024) ## stops here until message from client arrives
         answer = check_dns_record(data.decode().strip(), records) # the data comes as bytes, so we need to decode it to string and strip any whitespace
         if answer:
-            socket.sendto(answer.encode(), addr)
+            server_socket.sendto(answer.encode(), addr)
         else:
-            socket.sendto(b"Error: Host not found", addr)
+            server_socket.sendto(b"non-existent domain", addr)
 
 
-import sys
 def main():
-    myPort = int(sys.argv[1])
-    zoneFileName = sys.argv[2]
-    records = load_dns_file(zoneFileName)
-    s = create_socket(myPort)
+    # the server should receive 2 arguments: the port number to listen on, and the name of the file containing the DNS records
+    my_port = int(sys.argv[1])
+    filename = sys.argv[2]
+    # load the mapping records from the file into a dictionary
+    records = load_records_from_file(filename)
+    # create a socket and bind it to the specified port to listen for incoming queries from clients
+    s = create_socket(my_port)
+    # dilling with incoming queries
     server_logic(s, records)
 
 if __name__ == "__main__":
